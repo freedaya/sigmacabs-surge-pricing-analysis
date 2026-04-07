@@ -707,8 +707,10 @@ if role == "Data Analyst":
         if "❌" in val: return 'background-color: #f8d7da; color: #721c24;'
         return ''
 
-    st.dataframe(summary_df.style.applymap(color_influence, subset=['Pengaruh']), 
-                 use_container_width=True, hide_index=True)
+    st.dataframe(
+    summary_df.style.map(color_influence, subset=['Pengaruh']), 
+    width="stretch", 
+    hide_index=True)
     
     st.markdown("<br>", unsafe_allow_html=True)
     r1, r2, r3 = st.columns(3)

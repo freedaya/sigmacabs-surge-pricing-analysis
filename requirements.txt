@@ -4,4 +4,4 @@ streamlit
 plotly
 scipy
 joblib
-scikit-learn
+scikit-learn==1.6.1

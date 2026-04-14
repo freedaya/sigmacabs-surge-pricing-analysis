@@ -4,6 +4,8 @@ import streamlit as st
 import plotly.express as px
 import plotly.graph_objects as go
 from scipy.stats import norm
+import joblib
+import os
 import warnings
 warnings.filterwarnings("ignore")
 
@@ -743,10 +745,455 @@ if role == "Data Analyst":
 
 
 # ═════════════════════════════════════════════
-# DATA SCIENCE — PLACEHOLDER
+# DATA SCIENCE
 # ═════════════════════════════════════════════
 elif role == "Data Science":
-    st.markdown("""<div class='coming-soon'>
-        <span>🔬</span>
-        Data Science track belum tersedia.<br>Coming soon.
+
+    st.markdown("<h1 style='color:#212529; margin-bottom:4px;'>Sigma Cabs — Surge Pricing Prediction</h1>", unsafe_allow_html=True)
+    st.markdown("<p style='color:#6c757d; font-size:15px; margin-bottom:24px;'>Data Science Track · Machine Learning Classification</p>", unsafe_allow_html=True)
+
+    # ══════════════════════════
+    # DS SECTION 1: OVERVIEW
+    # ══════════════════════════
+    st.markdown("<div class='section-header'>📋 Overview</div>", unsafe_allow_html=True)
+
+    c1, c2, c3, c4 = st.columns(4)
+    ds_metrics = [
+        ("Random Forest", "Model", "🌲"),
+        ("GridSearchCV", "Tuning Method", "🔧"),
+        ("F1-Weighted", "Scoring Metric", "📐"),
+        ("3 Kelas", "Target Output", "🎯"),
+    ]
+    for col_obj, (val, lbl, icon) in zip([c1, c2, c3, c4], ds_metrics):
+        with col_obj:
+            st.markdown(f"""
+                <div class='metric-card'>
+                    <div style='font-size: 24px; margin-bottom: 5px;'>{icon}</div>
+                    <div class='metric-val' style='font-size:18px;'>{val}</div>
+                    <div class='metric-lbl'>{lbl}</div>
+                </div>
+            """, unsafe_allow_html=True)
+
+    st.markdown("<br>", unsafe_allow_html=True)
+    col_a, col_b = st.columns(2)
+    with col_a:
+        st.markdown("""<div class='card'>
+            <div class='card-label'>Project Background</div>
+            <div class='card-body'>Sigma Cabs merupakan platform agregator yang menyediakan layanan pemesanan transportasi dengan menghubungkan pelanggan ke berbagai penyedia layanan. Harga perjalanan bervariasi tergantung kondisi tertentu, yang terbagi menjadi tiga tipe (Surge Type 1, 2, dan 3). Perbedaan harga ini dipengaruhi oleh berbagai faktor, seperti jenis kendaraan, jarak perjalanan, hingga lokasi tujuan.</div>
+        </div>""", unsafe_allow_html=True)
+    with col_b:
+        st.markdown("""<div class='card'>
+            <div class='card-label'>Business Problem</div>
+            <div class='card-body'>Ketidakpastian dalam menentukan tipe surge pricing pada setiap order dapat menyebabkan proses pencocokan layanan menjadi <b>kurang optimal</b>. Hal ini berpotensi menghambat efisiensi operasional serta kecepatan dalam memberikan layanan yang sesuai kepada pelanggan.</div>
+        </div>""", unsafe_allow_html=True)
+
+    st.markdown("""<div class='card' style='border-left: 3px solid #4361ee;'>
+        <div class='card-label'>Problem Statement</div>
+        <div class='card-body' style='font-size:15px; color:#212529; font-style:italic;'>"Bagaimana cara mengklasifikasikan Surge Pricing Type pada setiap order berdasarkan karakteristik perjalanan dan pelanggan yang tersedia?"</div>
     </div>""", unsafe_allow_html=True)
+
+    st.markdown("""<div class='card'>
+        <div class='card-label'>Tujuan Proyek</div>
+        <div class='card-body'>Membangun sistem prediksi yang mampu mengklasifikasikan surge pricing type secara akurat, sehingga dapat membantu proses pengambilan keputusan yang lebih cepat dan efisien dalam mencocokkan pelanggan dengan layanan yang tersedia.</div>
+    </div>""", unsafe_allow_html=True)
+
+    st.divider()
+
+    # ══════════════════════════════════
+    # DS SECTION 2: DATA PREPROCESSING
+    # ══════════════════════════════════
+    st.markdown("<div class='section-header'>🔧 Data Preprocessing</div>", unsafe_allow_html=True)
+    st.markdown("<p style='color:#6c757d; font-size:14px;'>Langkah preprocessing sebelum training model.</p>", unsafe_allow_html=True)
+
+    col_pre1, col_pre2 = st.columns(2)
+    with col_pre1:
+        st.markdown("""<div class='card'>
+            <div class='card-label'>Encoding Fitur Kategorikal</div>
+            <div class='card-title'>Ordinal & One-Hot Encoding</div>
+            <div class='card-body'>
+                • <b>Type_of_Cab</b>: A→0, B→1, C→2, D→3, E→4 (ordinal)<br>
+                • <b>Destination_Type</b>: A→0 … N→13 (ordinal)<br>
+                • <b>Confidence_Life_Style_Index</b>: A→0, B→1, C→2 (ordinal)<br>
+                • <b>Gender</b>: One-Hot Encoding → Gender_Female, Gender_Male
+            </div>
+        </div>""", unsafe_allow_html=True)
+    with col_pre2:
+        st.markdown("""<div class='card'>
+            <div class='card-label'>Transformasi & Scaling</div>
+            <div class='card-title'>PowerTransformer + StandardScaler</div>
+            <div class='card-body'>
+                • <b>Var2 & Var3</b>: Yeo-Johnson PowerTransformer untuk mengatasi distribusi skewed<br>
+                • <b>StandardScaler</b>: Normalisasi semua fitur numerik setelah transformasi<br>
+                • Pipeline dibangun agar preprocessing dan model berjalan secara terintegrasi
+            </div>
+        </div>""", unsafe_allow_html=True)
+
+    with st.expander("📄 Feature Engineering Detail"):
+        fe_data = [
+            ("Trip_Distance", "float64", "Passthrough", "Jarak perjalanan — digunakan langsung"),
+            ("Type_of_Cab", "object → int", "Ordinal Encoding (A=0…E=4)", "Tipe taksi berurutan sesuai kelas"),
+            ("Customer_Since_Months", "float64", "Passthrough", "Durasi berlangganan dalam bulan"),
+            ("Life_Style_Index", "float64", "Passthrough", "Indeks gaya hidup pelanggan"),
+            ("Confidence_Life_Style_Index", "object → int", "Ordinal Encoding (A=0,B=1,C=2)", "Kategori kepercayaan indeks gaya hidup"),
+            ("Destination_Type", "object → int", "Ordinal Encoding (A=0…N=13)", "Tipe destinasi perjalanan"),
+            ("Customer_Rating", "float64", "Passthrough", "Rating rata-rata pelanggan"),
+            ("Cancellation_Last_1Month", "int64", "Passthrough", "Jumlah pembatalan 1 bulan terakhir"),
+            ("Var2", "float64", "Yeo-Johnson Transform", "Variabel masked — distribusi skewed"),
+            ("Var3", "float64", "Yeo-Johnson Transform", "Variabel masked — distribusi skewed"),
+            ("Gender", "object", "One-Hot → Gender_Female, Gender_Male", "Gender pelanggan"),
+        ]
+        fe_df = pd.DataFrame(fe_data, columns=["Fitur", "Tipe Asal", "Treatment", "Keterangan"])
+        st.dataframe(fe_df, use_container_width=True, hide_index=True)
+
+    st.divider()
+
+    # ════════════════════════════════
+    # DS SECTION 3: MODEL DEVELOPMENT
+    # ════════════════════════════════
+    st.markdown("<div class='section-header'>🌲 Pengembangan Model</div>", unsafe_allow_html=True)
+    st.markdown("<p style='color:#6c757d; font-size:14px;'>Random Forest Classifier dengan Pipeline dan Hyperparameter Tuning menggunakan GridSearchCV.</p>", unsafe_allow_html=True)
+
+    col_m1, col_m2 = st.columns(2)
+    with col_m1:
+        st.markdown("""<div class='card'>
+            <div class='card-label'>Base Model</div>
+            <div class='card-title'>Random Forest Classifier</div>
+            <div class='card-body'>
+                • n_estimators: 100<br>
+                • max_depth: 12<br>
+                • class_weight: <b>balanced</b><br>
+                • n_jobs: -1 (parallel)<br>
+                • random_state: 42
+            </div>
+        </div>""", unsafe_allow_html=True)
+    with col_m2:
+        st.markdown("""<div class='card'>
+            <div class='card-label'>Tuning — Best Params</div>
+            <div class='card-title'>GridSearchCV (F1-Weighted)</div>
+            <div class='card-body'>
+                • n_estimators: <b>200</b><br>
+                • max_depth: <b>12</b><br>
+                • min_samples_split: <b>10</b><br>
+                • min_samples_leaf: <b>2</b><br>
+                • max_features: <b>sqrt</b><br>
+                • criterion: <b>entropy</b><br>
+                • class_weight: <b>balanced_subsample</b>
+            </div>
+        </div>""", unsafe_allow_html=True)
+
+    st.markdown("""<div class='analysis-box'>
+        <b>Alasan Pemilihan Random Forest:</b> Dataset memiliki campuran fitur numerik dan kategorikal dengan pola non-linear (terlihat dari analisis EDA). Random Forest tahan terhadap outlier, tidak memerlukan asumsi distribusi, dan mampu menangani multiclass classification dengan baik. Pipeline dibangun dengan ColumnTransformer + StandardScaler untuk memastikan preprocessing konsisten antara training dan inference.
+    </div>""", unsafe_allow_html=True)
+
+    st.divider()
+
+    # ══════════════════════════════════
+    # DS SECTION 4: MODEL PERFORMANCE
+    # ══════════════════════════════════
+    st.markdown("<div class='section-header'>📊 Performa Model</div>", unsafe_allow_html=True)
+    st.markdown("<p style='color:#6c757d; font-size:14px;'>Hasil evaluasi model terbaik (best estimator) dari GridSearchCV.</p>", unsafe_allow_html=True)
+
+    # Load model
+    @st.cache_resource
+    def load_model():
+        if os.path.exists("model_1.pkl"):
+            return joblib.load("model_1.pkl")
+        return None
+
+    @st.cache_data
+    def load_shap():
+        if os.path.exists("shap_values_data.pkl"):
+            return joblib.load("shap_values_data.pkl")
+        return None
+
+    best_model = load_model()
+    df_shap_final = load_shap()
+
+    # Prepare test data sama seperti notebook
+    @st.cache_data
+    def prepare_model_data(_df_clean):
+        df_model = _df_clean.copy()
+        df_model['Type_of_Cab'] = df_model['Type_of_Cab'].map({'A': 0, 'B': 1, 'C': 2, 'D': 3, 'E': 4})
+        df_model['Destination_Type'] = df_model['Destination_Type'].map(
+            {'A':0,'B':1,'C':2,'D':3,'E':4,'F':5,'G':6,'H':7,'I':8,'J':9,'K':10,'L':11,'M':12,'N':13})
+        df_model['Confidence_Life_Style_Index'] = df_model['Confidence_Life_Style_Index'].map({'A': 0, 'B': 1, 'C': 2})
+        df_model = pd.get_dummies(df_model, columns=['Gender'], prefix='Gender')
+        df_model['Surge_Pricing_Type'] = df_model['Surge_Pricing_Type'].astype(int)
+        X = df_model.drop(['Surge_Pricing_Type'], axis=1)
+        y = df_model['Surge_Pricing_Type']
+        from sklearn.model_selection import train_test_split
+        X_train, X_test, y_train, y_test = train_test_split(X, y, random_state=42)
+        return X_train, X_test, y_train, y_test
+
+    X_train_ds, X_test_ds, y_train_ds, y_test_ds = prepare_model_data(df_clean)
+
+    if best_model is None:
+        st.warning("⚠️ File `model_1.pkl` tidak ditemukan. Pastikan file model ada di direktori yang sama dengan `app.py`.")
+    else:
+        from sklearn.metrics import accuracy_score, classification_report, confusion_matrix
+
+        y_pred_ds = best_model.predict(X_test_ds)
+        acc = accuracy_score(y_test_ds, y_pred_ds)
+        report = classification_report(y_test_ds, y_pred_ds, output_dict=True)
+
+        # Metric cards
+        m1, m2, m3, m4 = st.columns(4)
+        metrics_perf = [
+            (f"{acc*100:.2f}%", "Accuracy", "🎯"),
+            (f"{report['weighted avg']['precision']*100:.2f}%", "Precision (Weighted)", "✅"),
+            (f"{report['weighted avg']['recall']*100:.2f}%", "Recall (Weighted)", "🔍"),
+            (f"{report['weighted avg']['f1-score']*100:.2f}%", "F1-Score (Weighted)", "📐"),
+        ]
+        for col_obj, (val, lbl, icon) in zip([m1, m2, m3, m4], metrics_perf):
+            with col_obj:
+                st.markdown(f"""
+                    <div class='metric-card'>
+                        <div style='font-size: 24px; margin-bottom: 5px;'>{icon}</div>
+                        <div class='metric-val'>{val}</div>
+                        <div class='metric-lbl'>{lbl}</div>
+                    </div>
+                """, unsafe_allow_html=True)
+
+        st.markdown("<br>", unsafe_allow_html=True)
+
+        # Classification Report Table
+        st.markdown("<div class='section-header' style='font-size:16px; margin-top:8px;'>Classification Report (Best Model)</div>", unsafe_allow_html=True)
+        cr_rows = []
+        for label_key in ['1', '2', '3']:
+            r = report[label_key]
+            cr_rows.append({
+                "Surge Type": f"Type {label_key}",
+                "Precision": f"{r['precision']*100:.2f}%",
+                "Recall": f"{r['recall']*100:.2f}%",
+                "F1-Score": f"{r['f1-score']*100:.2f}%",
+                "Support": int(r['support'])
+            })
+        cr_rows.append({
+            "Surge Type": "Weighted Avg",
+            "Precision": f"{report['weighted avg']['precision']*100:.2f}%",
+            "Recall": f"{report['weighted avg']['recall']*100:.2f}%",
+            "F1-Score": f"{report['weighted avg']['f1-score']*100:.2f}%",
+            "Support": int(report['weighted avg']['support'])
+        })
+        cr_df = pd.DataFrame(cr_rows)
+        st.dataframe(cr_df, use_container_width=True, hide_index=True)
+
+        st.markdown("""<div class='analysis-box'>
+            Model menunjukkan performa yang sangat baik pada semua kelas. <b>Type 1 dan Type 3</b> memiliki F1-Score cukup ting
+            karena karakteristiknya yang lebih khas (Type 1 = kendaraan standar, Type 3 = premium + jarak jauh + pembatalan tinggi).
+            <b>Type 2</b> sedikit lebih rendah karena merupakan kelas "tengah" yang memiliki karakteristik yang overlap dengan kedua kelas lainnya.
+        </div>""", unsafe_allow_html=True)
+
+        st.divider()
+
+        # Confusion Matrix
+        st.markdown("<div class='section-header'>🔢 Confusion Matrix</div>", unsafe_allow_html=True)
+        st.markdown("<p style='color:#6c757d; font-size:14px;'>Distribusi prediksi vs aktual pada test set.</p>", unsafe_allow_html=True)
+
+        cm = confusion_matrix(y_test_ds, y_pred_ds)
+        labels_cm = ['Type 1', 'Type 2', 'Type 3']
+        df_cm = pd.DataFrame(cm, index=labels_cm, columns=labels_cm)
+
+        fig_cm = px.imshow(
+            df_cm,
+            text_auto=True,
+            labels=dict(x="Prediksi (Model)", y="Aktual (Data Asli)", color="Jumlah"),
+            x=labels_cm,
+            y=labels_cm,
+            color_continuous_scale='Blues',
+            title='Confusion Matrix — Surge Pricing Classification',
+            height=500
+        )
+        fig_cm.update_layout(
+            paper_bgcolor='white',
+            font=dict(family="Arial, sans-serif", size=16, color='#212529'),
+            title=dict(font=dict(size=20, color='#212529'), x=0),
+            xaxis=dict(title=dict(font=dict(size=18)), tickfont=dict(size=16)),
+            yaxis=dict(title=dict(font=dict(size=18)), tickfont=dict(size=16)),
+            coloraxis_showscale=False,
+            width=550
+        )
+        fig_cm.update_traces(textfont_size=20)
+
+        col_cm, col_cm_txt = st.columns([1, 1])
+        with col_cm:
+            st.plotly_chart(fig_cm, use_container_width=True)
+        with col_cm_txt:
+            st.markdown("<br><br>", unsafe_allow_html=True)
+            for i, lbl in enumerate(['Type 1', 'Type 2', 'Type 3']):
+                total_actual = cm[i].sum()
+                correct = cm[i][i]
+                pct = correct / total_actual * 100
+                st.markdown(f"""<div class='card' style='padding:12px 16px; margin-bottom:10px;'>
+                    <div class='card-label'>{lbl}</div>
+                    <div style='font-size:22px; font-weight:800; color:#4361ee;'>{correct:,} / {total_actual:,}</div>
+                    <div style='font-size:12px; color:#6c757d;'>Prediksi benar ({pct:.1f}%)</div>
+                </div>""", unsafe_allow_html=True)
+
+        st.divider()
+
+        # SHAP Feature Importance
+        st.markdown("<div class='section-header'>🔍 Feature Importance (SHAP)</div>", unsafe_allow_html=True)
+        st.markdown("<p style='color:#6c757d; font-size:14px;'>Kontribusi rata-rata setiap fitur terhadap prediksi per kelas Surge Pricing (dari <code>shap_values_data.pkl</code>).</p>", unsafe_allow_html=True)
+
+        if df_shap_final is None:
+            st.warning("⚠️ File `shap_values_data.pkl` tidak ditemukan. Pastikan file ada di direktori yang sama dengan `app.py`.")
+        else:
+            # Ensure columns are correct
+            if 'Total_Impact' not in df_shap_final.columns:
+                df_shap_final['Total_Impact'] = df_shap_final[['Type 1', 'Type 2', 'Type 3']].sum(axis=1)
+            df_shap_sorted = df_shap_final.sort_values(by='Total_Impact', ascending=True)
+
+            shap_view = st.radio("Tampilan SHAP", ["Per Kelas (Grouped)", "Total Impact"], horizontal=True)
+
+            if shap_view == "Per Kelas (Grouped)":
+                df_melted = df_shap_sorted.melt(
+                    id_vars=['Feature', 'Total_Impact'],
+                    value_vars=['Type 1', 'Type 2', 'Type 3'],
+                    var_name='Surge_Type',
+                    value_name='SHAP_Value'
+                )
+                shap_colors = {'Type 1': '#636EFA', 'Type 2': '#EF553B', 'Type 3': '#00CC96'}
+                fig_shap = px.bar(
+                    df_melted,
+                    x='SHAP_Value', y='Feature',
+                    color='Surge_Type',
+                    barmode='group',
+                    orientation='h',
+                    color_discrete_map=shap_colors,
+                    title="SHAP Feature Importance per Surge Type",
+                    height=900
+                )
+                fig_shap.update_layout(**PLOTLY_LAYOUT)
+                fig_shap.update_yaxes(categoryorder='array', categoryarray=df_shap_sorted['Feature'].tolist())
+                fig_shap.update_layout(legend=dict(title="Surge Type", font=dict(size=16)))
+                fig_shap.update_traces(textfont_size=14)
+            else:
+                fig_shap = px.bar(
+                    df_shap_sorted,
+                    x='Total_Impact', y='Feature',
+                    orientation='h',
+                    color='Total_Impact',
+                    color_continuous_scale='Blues',
+                    text='Total_Impact',
+                    title="SHAP Total Feature Importance (Sum Across All Classes)",
+                    height=900
+                )
+                fig_shap.update_traces(
+                    texttemplate='%{text:.4f}',
+                    textposition='outside',
+                    textfont_size=16
+                )
+                fig_shap.update_layout(
+                    **PLOTLY_LAYOUT,
+                    coloraxis_showscale=False
+                )
+                fig_shap.update_yaxes(categoryorder='array', categoryarray=df_shap_sorted['Feature'].tolist())
+
+            st.plotly_chart(fig_shap, use_container_width=True)
+
+            # Top features analysis
+            top3 = df_shap_sorted.nlargest(3, 'Total_Impact')['Feature'].tolist()
+            st.markdown(f"""<div class='analysis-box'>
+                Berdasarkan SHAP values, tiga fitur dengan kontribusi tertinggi adalah:
+                <b>{top3[0]}</b>, <b>{top3[1]}</b>, dan <b>{top3[2]}</b>.
+                Hal ini konsisten dengan temuan di Data Analyst track, di mana <b>Type_of_Cab</b> dan
+                <b>Cancellation_Last_1Month</b> terbukti memiliki korelasi paling kuat terhadap Surge Pricing Type.
+                SHAP memberikan interpretasi per kelas — membantu memahami <i>mengapa</i> model
+                memprediksi tipe tertentu pada setiap order.
+            </div>""", unsafe_allow_html=True)
+
+        st.divider()
+
+        # SIMULASI
+        st.markdown("<div class='section-header'>🎮 Simulasi Prediksi</div>", unsafe_allow_html=True)
+        st.markdown("<p style='color:#6c757d; font-size:14px;'>Masukkan data order baru untuk memprediksi Surge Pricing Type menggunakan model yang sudah dilatih.</p>", unsafe_allow_html=True)
+
+        cab_mapping_sim = {'A': 0, 'B': 1, 'C': 2, 'D': 3, 'E': 4}
+        destination_mapping_sim = {'A':0,'B':1,'C':2,'D':3,'E':4,'F':5,'G':6,'H':7,'I':8,'J':9,'K':10,'L':11,'M':12,'N':13}
+        confidence_mapping_sim = {'A': 0, 'B': 1, 'C': 2}
+
+        with st.form("simulasi_form"):
+            st.markdown("<div style='font-weight:700; font-size:15px; margin-bottom:12px; color:#212529;'>Input Data Order</div>", unsafe_allow_html=True)
+            r1c1, r1c2, r1c3 = st.columns(3)
+            r2c1, r2c2, r2c3 = st.columns(3)
+            r3c1, r3c2, r3c3 = st.columns(3)
+            r4c1, r4c2 = st.columns(2)
+
+            with r1c1:
+                sim_distance = st.number_input("Trip Distance (km)", min_value=0.0, max_value=200.0, value=20.0, step=0.5)
+            with r1c2:
+                sim_cab = st.selectbox("Type of Cab", ['A', 'B', 'C', 'D', 'E'])
+            with r1c3:
+                sim_destination = st.selectbox("Destination Type", list('ABCDEFGHIJKLMN'))
+            with r2c1:
+                sim_gender = st.selectbox("Gender", ['Male', 'Female'])
+            with r2c2:
+                sim_confidence = st.selectbox("Confidence Life Style Index", ['A', 'B', 'C'])
+            with r2c3:
+                sim_lifestyle = st.number_input("Life Style Index", min_value=0.0, max_value=10.0, value=2.8, step=0.1)
+            with r3c1:
+                sim_rating = st.number_input("Customer Rating", min_value=1.0, max_value=5.0, value=3.5, step=0.1)
+            with r3c2:
+                sim_months = st.number_input("Customer Since (Months)", min_value=0, max_value=120, value=10, step=1)
+            with r3c3:
+                sim_cancel = st.number_input("Cancellation Last 1 Month", min_value=0, max_value=20, value=0, step=1)
+            with r4c1:
+                sim_var2 = st.number_input("Var2", min_value=0.0, max_value=500.0, value=40.0, step=1.0)
+            with r4c2:
+                sim_var3 = st.number_input("Var3", min_value=0.0, max_value=500.0, value=70.0, step=1.0)
+
+            submitted = st.form_submit_button("🔮 Prediksi Surge Type", use_container_width=True)
+
+        if submitted:
+            input_dict = {
+                'Trip_Distance': sim_distance,
+                'Type_of_Cab': cab_mapping_sim[sim_cab],
+                'Customer_Since_Months': sim_months,
+                'Life_Style_Index': sim_lifestyle,
+                'Confidence_Life_Style_Index': confidence_mapping_sim[sim_confidence],
+                'Destination_Type': destination_mapping_sim[sim_destination],
+                'Customer_Rating': sim_rating,
+                'Cancellation_Last_1Month': sim_cancel,
+                'Var2': sim_var2,
+                'Var3': sim_var3,
+                'Gender_Female': (sim_gender == 'Female'),
+                'Gender_Male': (sim_gender == 'Male'),
+            }
+            df_input = pd.DataFrame([input_dict])[X_train_ds.columns]
+            pred = best_model.predict(df_input)[0]
+            proba = best_model.predict_proba(df_input)[0]
+
+            surge_color = {'1': '#636EFA', '2': '#EF553B', '3': '#00CC96'}
+            surge_label = {'1': 'Surge Type 1 — Harga Normal', '2': 'Surge Type 2 — Harga Menengah', '3': 'Surge Type 3 — Harga Tertinggi'}
+            color = surge_color.get(str(pred), '#4361ee')
+            label = surge_label.get(str(pred), f'Surge Type {pred}')
+
+            st.markdown(f"""<div style='background:{color}18; border: 2px solid {color}; border-radius:12px; padding:24px; text-align:center; margin: 16px 0;'>
+                <div style='font-size:14px; color:#6c757d; font-weight:600; letter-spacing:1px; text-transform:uppercase; margin-bottom:8px;'>Hasil Prediksi</div>
+                <div style='font-size:32px; font-weight:900; color:{color};'>{label}</div>
+            </div>""", unsafe_allow_html=True)
+
+            p1, p2, p3 = st.columns(3)
+            proba_labels = [(proba[0], '#636EFA', 'Type 1'), (proba[1], '#EF553B', 'Type 2'), (proba[2], '#00CC96', 'Type 3')]
+            for col_obj, (p_val, p_color, p_lbl) in zip([p1, p2, p3], proba_labels):
+                with col_obj:
+                    st.markdown(f"""<div class='metric-card'>
+                        <div style='font-size:13px; font-weight:700; color:{p_color}; margin-bottom:6px;'>{p_lbl}</div>
+                        <div style='font-size:28px; font-weight:800; color:{p_color};'>{p_val*100:.1f}%</div>
+                        <div style='font-size:11px; color:#6c757d;'>Probabilitas</div>
+                    </div>""", unsafe_allow_html=True)
+
+            fig_prob = go.Figure(go.Bar(
+                x=['Type 1', 'Type 2', 'Type 3'],
+                y=[p*100 for p in proba],
+                marker_color=['#636EFA', '#EF553B', '#00CC96'],
+                text=[f'{p*100:.1f}%' for p in proba],
+                textposition='outside',
+                textfont=dict(size=18)
+            ))
+            fig_prob.update_layout(**PLOTLY_LAYOUT)
+            fig_prob.update_layout(height=400, showlegend=False)
+            fig_prob.update_layout(title="Probabilitas Prediksi per Surge Type")
+            fig_prob.update_yaxes(title_text="Probabilitas (%)", range=[0, 110])
+            st.plotly_chart(fig_prob, use_container_width=True)
